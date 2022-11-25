@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "VS_RobotAuto_T",
+			"path": "../VS_RobotAuto_T"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
