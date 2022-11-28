@@ -19,7 +19,7 @@
 
 // von ESP32 ROBOTAUTO
 #ifndef LED_BUILTIN
-#define LED_BUILTIN 13
+#define LED_BUILTIN 16
 #endif
 
 #define NUM_SERVOS 4
@@ -33,11 +33,11 @@ uint16_t maxwinkel = 180;
 uint8_t buttonstatus = 0;
 uint8_t tonindex = 0;
 void playTon(int ton);
-#define START_TON 0
-#define LICHT_ON 1
+#define START_TON 1
+#define LICHT_ON 2
 
-
-
+#define TON_PIN 4
+elapsedMillis tonposition;
 uint8_t expolevel = 3;
 
 uint16_t ubatt = 0;
@@ -47,7 +47,7 @@ uint16_t ubatt = 0;
 int ledintervall = 1000;
 Ticker timer;
 elapsedMillis ledmillis;
-
+elapsedMillis tonmillis;
 int tonfolge[3] = {554, 329, 440};
 
 struct ServoPins
@@ -83,7 +83,7 @@ void playTon(int ton)
   // Cis: 554
   // e: 330
   // a: 440
-  tone(18,tonfolge[ton],800);
+  tone(TON_PIN,tonfolge[ton],800);
 }
 
 
@@ -166,11 +166,12 @@ uint16_t servoticks(uint16_t inticks)
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) 
 {
   // blink
-  digitalWrite(13,!digitalRead(13));
   memcpy(&canaldata, incomingData, sizeof(canaldata));
  
- // Serial.print("Bytes received: ");
- // Serial.println(len);
+  Serial.print("Bytes received: ");
+  //Serial.println(mac);
+
+/*
   Serial.print("lx: ");
   Serial.print(canaldata.lx);
   Serial.print(" ");
@@ -179,7 +180,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len)
   Serial.print(" ");
   Serial.print("digi: ");
   Serial.println(canaldata.digi);
-
+*/
  // lx
  
   // 
@@ -211,7 +212,15 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len)
 
 if (canaldata.digi & (1<<START_TON))
 {
-  buttonstatus |= (1<<START_TON);
+  if (!(buttonstatus & (1<<START_TON)))
+  {
+    //Serial.println("digi start");
+    //Serial.println(canaldata.digi);
+    buttonstatus |= (1<<START_TON);
+    tonindex = 0;
+
+  }
+  
 }
 }
 
@@ -231,10 +240,12 @@ void setUpPinModes()
 void setup() {
   //Initialize Serial Monitor
   Serial.begin(115200);
+  pinMode(TON_PIN,OUTPUT);
+  pinMode(LED_BUILTIN,OUTPUT);
   // https://community.platformio.org/t/esp8266-gibberish-serial-monitor-output/30027
   //Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-
+  WiFi.disconnect();
   //Init ESP-NOW
   if (esp_now_init() != 0) {
     Serial.println("Error initializing ESP-NOW");
@@ -246,27 +257,51 @@ void setup() {
   // get recv packer info
   esp_now_set_self_role(ESP_NOW_ROLE_SLAVE);
   esp_now_register_recv_cb(OnDataRecv);
+
 }
  
 void loop() 
 {
-  if (ledmillis > ledintervall)
+  
+  if (ledmillis >= ledintervall)
   {
     ledmillis = 0;
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
+    
+
     //Serial.println("led");
   }
 
   if (buttonstatus & (1<<START_TON))
   {
-    playTon(tonindex);
+    
+    if (tonindex == 0)
+    {
+      tonmillis = 0;
+      //Serial.print("************ TON start index: ");
+      //Serial.println(tonindex);
+      playTon(tonindex);
+      tonindex++;
+    }
+    
     
     if (tonindex < 3)
     {
-        tonindex++;
+        if (tonmillis > 850)
+        {
+          //Serial.print("************ TON next index: ");
+          //Serial.println(tonindex);
+          playTon(tonindex);
+          tonindex++;
+          
+          tonmillis = 0;
+        }
+        
     }
     else
     {
+      Serial.print("************ TON END");
       buttonstatus &= ~(1<<START_TON);
       tonindex = 0;
     }
